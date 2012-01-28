@@ -176,7 +176,7 @@ foreach($operations as $operation) {
 
 $types = $client->__getTypes();
 
-$primitive_types = array('string', 'int', 'long', 'float', 'boolean', 'dateTime', 'double', 'short', 'UNKNOWN', 'base64Binary', 'decimal', 'ArrayOfInt', 'ArrayOfFloat', 'ArrayOfString', 'decimal', 'hexBinary'); // TODO: dateTime is special, maybe use PEAR::Date or similar
+$primitive_types = array('string', 'int', 'long', 'float', 'boolean', 'date', 'dateTime', 'double', 'short', 'UNKNOWN', 'base64Binary', 'decimal', 'ArrayOfInt', 'ArrayOfFloat', 'ArrayOfString', 'decimal', 'hexBinary'); // TODO: dateTime is special, maybe use PEAR::Date or similar
 $service['types'] = array();
 foreach($types as $type) {
     $parts = explode("\n", $type);
@@ -236,6 +236,7 @@ print "Generating code...";
 $code = "";
 
 // add types
+$file = null;
 foreach($service['types'] as $type) {
 
     if($namespace) {
@@ -244,12 +245,6 @@ foreach($service['types'] as $type) {
             mkdir($dirname, 0777, true);
         $file = fopen($dirname . $type['baseClass']. '.php', 'w');
     }
-    //  $code .= "/**\n";
-    //  $code .= " * ".(isset($type['doc'])?$type['doc']:'')."\n";
-    //  $code .= " * \n";
-    //  $code .= " * @package\n";
-    //  $code .= " * @copyright\n";
-    //  $code .= " */\n";
 
     // add enumeration values
     $code .= "class ".$type['class']." {\n";
@@ -267,7 +262,7 @@ foreach($service['types'] as $type) {
         $code .= "     */\n";
         $code .= "    public \$".$member['member'] . ";\n";
     }
-    $code .= "}\n";
+    $code .= "}\n\n";
     if($file) 
     {
         print "Writing " . $type['baseClass']. ".php...";
@@ -278,26 +273,6 @@ foreach($service['types'] as $type) {
     }
 
 }
-
-// add service
-
-// page level docblock
-//$code .= "/**\n";
-//$code .= " * ".$service['class']." class file\n";
-//$code .= " * \n";
-//$code .= " * @author    {author}\n";
-//$code .= " * @copyright {copyright}\n";
-//$code .= " * @package   {package}\n";
-//$code .= " */\n\n";
-
-
-// require types
-//foreach($service['types'] as $type) {
-//  $code .= "/**\n";
-//  $code .= " * ".$type['class']." class\n";
-//  $code .= " */\n";
-//  $code .= "require_once '".$type['class'].".php';\n";
-//}
 
 $code .= "\n";
 
@@ -314,64 +289,57 @@ $code .= " */\n";
 $code .= "class ".$service['class']." extends SoapClient {\n\n";
 
 // add classmap
-$code .= "  private static \$classmap = array(\n";
+$code .= "    private static \$classmap = array(\n";
 foreach($service['types'] as $type) {
-    $code .= "                                    '".$type['baseClass']."' => '".$type['class']."',\n";
+    $code .= "        '".$type['baseClass']."' => '".$type['class']."',\n";
 }
-$code .= "                                   );\n\n";
-$code .= "  public function __construct(\$wsdl = \"".$service['wsdl']."\", \$options = array()) {\n";
+$code .= "    );\n\n";
+$code .= "    public function __construct(\$wsdl = \"".$service['wsdl']."\", \$options = array()) {\n";
 
 // initialize classmap (merge)
-$code .= "    foreach(self::\$classmap as \$key => \$value) {\n";
-$code .= "      if(!isset(\$options['classmap'][\$key])) {\n";
-$code .= "        \$options['classmap'][\$key] = \$value;\n";
-$code .= "      }\n";
-$code .= "    }\n";
-$code .= "    parent::__construct(\$wsdl, \$options);\n";
-$code .= "  }\n\n";
+$code .= "        foreach(self::\$classmap as \$key => \$value) {\n";
+$code .= "            if(!isset(\$options['classmap'][\$key])) {\n";
+$code .= "                \$options['classmap'][\$key] = \$value;\n";
+$code .= "            }\n";
+$code .= "        }\n";
+$code .= "        parent::__construct(\$wsdl, \$options);\n";
+$code .= "    }\n\n";
 
 foreach($service['functions'] as $function) {
-    $code .= "  /**\n";
-    $code .= parse_doc("   * ", $function['doc']);
-    $code .= "   *\n";
+    $code .= "    /**\n";
+    if ($function['doc']) {
+        $code .= parse_doc("     * ", $function['doc']);
+        $code .= "     *\n";
+    }
 
     $signature = array(); // used for function signature
     $para = array(); // just variable names
-    if(count($function['params']) > 0) {
+    if(count($function['params']) > 0 && $function['params'][0][0]) {
+        echo $function['name'];
+        var_export($function['params']);
         foreach($function['params'] as $param) {
-            if(count($param) == 2) {
-                $typeHint = $param[0] . ' ';
-                if(isTypeHint($typeHint, $primitive_types)) {
-                    $typeHint = $namespace . $typeHint;
-                }
-                else $typeHint = '';
-                $typeName = $param[1];
+            if (count($param) > 1) {
+                $type = ' ' . $param[0];
+                $name = $param[1];
+            } else {
+                $type = '';
+                $name = $param[0];
             }
-            else {
-                $typeHint = '';
-                $typeName = $param[0];
-            }
-            $code .= "   * @param $typeHint$typeName\n";
-      /*$typehint = false;
-      foreach($service['types'] as $type) {
-    if($type['class'] == $param[0]) {
-      $typehint = true;
-    }
-      }
-      $signature[] = ($typehint) ? implode(' ', $param) : $param[1];*/
-            $signature[] = $typeHint . $typeName;
-            $para[] = $typeName;
+            $code .= "     * @param $name$type\n";
+            $signature[] = $name;
+            $para[] = $name;
         }
     }
     if(isTypeHint($function['return'], $primitive_types)) {
-        $code .= "   * @return ".$namespace . $function['return']."\n";
+        $code .= "     * @return ".$namespace . $function['return']."\n";
     }
     else
-        $code .= "   * @return ".$function['return']."\n";
-    $code .= "   */\n";
-    $code .= "  public function ".$function['name']."(".implode(', ', $signature).") {\n";
-    //  $code .= "    return \$this->client->".$function['name']."(".implode(', ', $para).");\n";
-    $code .= "    return \$this->__soapCall('".$function['method']."', array(";
+        $code .= "     * @return ".$function['return']."\n";
+    $code .= "     */\n";
+    $code .= "    public function ".$function['name']."(".implode(', ', $signature).") {\n";
+    $code .= "        return \$this->__soapCall(\n";
+    $code .= "            '".$function['method']."',\n";
+    $code .= "            array(";
     $params = array();
     if(count($signature) > 0) { // add arguments
         foreach($signature as $param) {
@@ -380,18 +348,15 @@ foreach($service['functions'] as $function) {
             }
             $params[] = $param;
         }
-        //$code .= "\n      ";
         $code .= implode(", ", $params);
-        //$code .= "\n      ),\n";
     }
-    $code .= "), ";
-    //$code .= implode(', ', $signature)."),\n";
-    $code .= "      array(\n";
-    $code .= "            'uri' => '".$targetNamespace."',\n";
-    $code .= "            'soapaction' => ''\n";
-    $code .= "           )\n";
-    $code .= "      );\n";
-    $code .= "  }\n\n";
+    $code .= "),\n";
+    $code .= "            array(\n";
+    $code .= "                'uri' => '".$targetNamespace."',\n";
+    $code .= "                'soapaction' => ''\n";
+    $code .= "            )\n";
+    $code .= "        );\n";
+    $code .= "    }\n\n";
 }
 $code .= "}\n\n";
 print "done\n";
