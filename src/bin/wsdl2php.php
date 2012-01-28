@@ -315,8 +315,6 @@ foreach($service['functions'] as $function) {
     $signature = array(); // used for function signature
     $para = array(); // just variable names
     if(count($function['params']) > 0 && $function['params'][0][0]) {
-        echo $function['name'];
-        var_export($function['params']);
         foreach($function['params'] as $param) {
             if (count($param) > 1) {
                 $type = ' ' . $param[0];
