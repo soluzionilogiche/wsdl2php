@@ -262,6 +262,21 @@ foreach($service['types'] as $type) {
         $code .= "     */\n";
         $code .= "    public \$".$member['member'] . ";\n";
     }
+	
+	// add access method
+	foreach($type['members'] as $member) {
+		$code .= '
+	/**
+	 * @param '.$member['type'].' $val
+	 * @throws Exception 
+	 */
+	public function set'.ucwords($member['member']).'($val) {
+		'.accessMethodCaster($member['type'], $member['member']).'
+		$this->'.$member['member'].' = (int)$val;
+	}
+';
+	}
+	
     $code .= "}\n\n";
     if($file) 
     {
@@ -447,4 +462,11 @@ function isTypeHint($typeHint, array $primitive_types) {
     return !in_array($typeHint, $primitive_types) && !(substr($typeHint, 0, 7) == 'ArrayOf');
 }
 
-?>
+function accessMethodCaster($type, $fieldname) {
+	switch($type) {
+		case 'string':
+			return 'if(!is_string($val)) throw new Exception(\'POJO Proxy need a string for '.$fieldname.'\');';
+		case 'int':
+			return 'if(!is_int($val)) throw new Exception(\'POJO Proxy need a integer\');';
+	}
+}
